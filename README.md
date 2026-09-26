@@ -1,3 +1,11 @@
+## Post-processing profiles (this fork)
+
+[![Post-processing profiles demo](docs/post-processing-profiles-demo.gif)](docs/post-processing-profiles-demo.mp4)
+
+Keep several post-processing setups side by side, each with its own global shortcut, e.g. a local model on F5 and two cloud models on F6/F7. Profiles are tabs on the Post Processing page: **+** adds one, **×** deletes it, double-click renames it. Your existing setup becomes the undeletable **Default** profile. See [FORK.md](FORK.md) for details and build instructions. _(Click the preview for the full-quality video.)_
+
+---
+
 # Handy
 
 [![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/invite/WVBeWsNXK4)
