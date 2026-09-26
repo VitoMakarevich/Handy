@@ -20,6 +20,7 @@ import { ProviderSelect } from "../PostProcessingSettingsApi/ProviderSelect";
 import { BaseUrlField } from "../PostProcessingSettingsApi/BaseUrlField";
 import { ApiKeyField } from "../PostProcessingSettingsApi/ApiKeyField";
 import { ModelSelect } from "../PostProcessingSettingsApi/ModelSelect";
+import { ReasoningSelect } from "../PostProcessingSettingsApi/ReasoningSelect";
 import { usePostProcessProviderState } from "../PostProcessingSettingsApi/usePostProcessProviderState";
 import { ShortcutInput } from "../ShortcutInput";
 import { useSettings } from "../../../hooks/useSettings";
@@ -150,6 +151,22 @@ const PostProcessingSettingsApiComponent: React.FC<ProfileProps> = ({
               />
             </ResetButton>
           </div>
+        </SettingContainer>
+      )}
+
+      {state.isCustomProvider && (
+        <SettingContainer
+          title={t("settings.postProcessing.api.reasoning.title")}
+          description={t("settings.postProcessing.api.reasoning.description")}
+          descriptionMode="inline"
+          layout="horizontal"
+          grouped={true}
+        >
+          <ReasoningSelect
+            value={state.reasoningEffort}
+            onChange={state.handleReasoningEffortSelect}
+            disabled={state.isReasoningEffortUpdating}
+          />
         </SettingContainer>
       )}
     </>

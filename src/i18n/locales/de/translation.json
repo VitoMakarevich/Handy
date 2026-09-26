@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Modell suchen oder auswählen",
           "placeholderNoOptions": "Modellnamen eingeben",
           "refreshModels": "Modelle aktualisieren"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "description": "Wenn die Ausgabe die Überlegungen des Modells enthält oder die Anfrage fehlschlägt, versuche „Niedrig“.",
+          "options": {
+            "auto": "Automatisch (Standard)",
+            "omit": "Nicht senden",
+            "none": "Keins",
+            "minimal": "Minimal",
+            "low": "Niedrig",
+            "medium": "Mittel",
+            "high": "Hoch"
+          }
         }
       },
       "prompts": {

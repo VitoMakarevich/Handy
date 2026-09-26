@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Buscar o seleccionar un modelo",
           "placeholderNoOptions": "Escribe un nombre de modelo",
           "refreshModels": "Actualizar modelos"
+        },
+        "reasoning": {
+          "title": "Razonamiento",
+          "description": "Si la salida contiene el razonamiento del modelo o la solicitud falla, prueba «Bajo».",
+          "options": {
+            "auto": "Automático (predeterminado)",
+            "omit": "No enviar",
+            "none": "Ninguno",
+            "minimal": "Mínimo",
+            "low": "Bajo",
+            "medium": "Medio",
+            "high": "Alto"
+          }
         }
       },
       "prompts": {

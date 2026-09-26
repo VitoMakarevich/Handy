@@ -447,6 +447,19 @@
           "placeholderWithOptions": "मॉडल खोजें या चुनें",
           "placeholderNoOptions": "मॉडल का नाम लिखें",
           "refreshModels": "मॉडल रीफ़्रेश करें"
+        },
+        "reasoning": {
+          "title": "रीज़निंग",
+          "description": "यदि आउटपुट में मॉडल की सोच दिखे या अनुरोध विफल हो, तो «कम» आज़माएँ।",
+          "options": {
+            "auto": "स्वचालित (डिफ़ॉल्ट)",
+            "omit": "न भेजें",
+            "none": "कोई नहीं",
+            "minimal": "न्यूनतम",
+            "low": "कम",
+            "medium": "मध्यम",
+            "high": "उच्च"
+          }
         }
       },
       "prompts": {

@@ -1144,6 +1144,20 @@ pub fn change_post_process_model_setting(
 
 #[tauri::command]
 #[specta::specta]
+pub fn change_post_process_reasoning_effort_setting(
+    app: AppHandle,
+    profile_id: String,
+    value: settings::ReasoningEffort,
+) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    let profile = profile_mut(&mut settings, &profile_id)?;
+    profile.reasoning_effort = value;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub fn set_post_process_provider(
     app: AppHandle,
     profile_id: String,

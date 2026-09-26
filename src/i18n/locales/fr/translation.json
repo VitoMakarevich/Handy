@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Rechercher ou sélectionner un modèle",
           "placeholderNoOptions": "Tapez un nom de modèle",
           "refreshModels": "Actualiser les modèles"
+        },
+        "reasoning": {
+          "title": "Raisonnement",
+          "description": "Si la sortie contient la réflexion du modèle ou si la requête échoue, essayez « Faible ».",
+          "options": {
+            "auto": "Automatique (par défaut)",
+            "omit": "Ne pas envoyer",
+            "none": "Aucun",
+            "minimal": "Minimal",
+            "low": "Faible",
+            "medium": "Moyen",
+            "high": "Élevé"
+          }
         }
       },
       "prompts": {

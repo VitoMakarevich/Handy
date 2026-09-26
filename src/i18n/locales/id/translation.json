@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Cari atau pilih model",
           "placeholderNoOptions": "Ketik nama model",
           "refreshModels": "Segarkan model"
+        },
+        "reasoning": {
+          "title": "Penalaran",
+          "description": "Jika output berisi pemikiran model atau permintaan gagal, coba Rendah.",
+          "options": {
+            "auto": "Otomatis (bawaan)",
+            "omit": "Jangan kirim",
+            "none": "Tidak ada",
+            "minimal": "Minimal",
+            "low": "Rendah",
+            "medium": "Sedang",
+            "high": "Tinggi"
+          }
         }
       },
       "prompts": {

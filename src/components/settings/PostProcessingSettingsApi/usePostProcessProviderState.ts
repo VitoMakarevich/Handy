@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { useSettings } from "../../../hooks/useSettings";
-import { commands, type PostProcessProvider } from "@/bindings";
+import {
+  commands,
+  type PostProcessProvider,
+  type ReasoningEffort,
+} from "@/bindings";
 import { postProcessKey } from "../../../stores/settingsStore";
 import type { ModelOption } from "./types";
 import type { DropdownOption } from "../../ui/Dropdown";
@@ -27,6 +31,9 @@ type PostProcessProviderState = {
   handleModelSelect: (value: string) => void;
   handleModelCreate: (value: string) => void;
   handleRefreshModels: () => void;
+  reasoningEffort: ReasoningEffort;
+  handleReasoningEffortSelect: (value: ReasoningEffort) => void;
+  isReasoningEffortUpdating: boolean;
 };
 
 const APPLE_PROVIDER_ID = "apple_intelligence";
@@ -41,6 +48,7 @@ export const usePostProcessProviderState = (
     updatePostProcessBaseUrl,
     updatePostProcessApiKey,
     updatePostProcessModel,
+    updatePostProcessReasoningEffort,
     fetchPostProcessModels,
     postProcessModelOptions,
   } = useSettings();
@@ -71,6 +79,7 @@ export const usePostProcessProviderState = (
   const baseUrl = selectedProvider?.base_url ?? "";
   const apiKey = profile?.api_keys?.[selectedProviderId] ?? "";
   const model = profile?.models?.[selectedProviderId] ?? "";
+  const reasoningEffort = profile?.reasoning_effort ?? "auto";
 
   const providerOptions = useMemo<DropdownOption[]>(() => {
     return providers.map((provider) => ({
@@ -176,6 +185,15 @@ export const usePostProcessProviderState = (
     void fetchPostProcessModels(profileId, selectedProviderId);
   }, [fetchPostProcessModels, isAppleProvider, profileId, selectedProviderId]);
 
+  const handleReasoningEffortSelect = useCallback(
+    (value: ReasoningEffort) => {
+      if (value !== reasoningEffort) {
+        void updatePostProcessReasoningEffort(profileId, value);
+      }
+    },
+    [profileId, reasoningEffort, updatePostProcessReasoningEffort],
+  );
+
   const providerKey = postProcessKey(profileId, selectedProviderId);
   const availableModelsRaw = postProcessModelOptions[providerKey] || [];
 
@@ -208,6 +226,10 @@ export const usePostProcessProviderState = (
     `post_process_models_fetch:${providerKey}`,
   );
 
+  const isReasoningEffortUpdating = isUpdating(
+    `post_process_reasoning_effort:${profileId}`,
+  );
+
   const isCustomProvider = selectedProvider?.id === "custom";
 
   // No automatic fetching - user must click refresh button
@@ -234,5 +256,8 @@ export const usePostProcessProviderState = (
     handleModelSelect,
     handleModelCreate,
     handleRefreshModels,
+    reasoningEffort,
+    handleReasoningEffortSelect,
+    isReasoningEffortUpdating,
   };
 };

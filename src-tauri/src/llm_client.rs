@@ -1,4 +1,4 @@
-use crate::settings::PostProcessProvider;
+use crate::settings::{PostProcessProvider, ReasoningEffort};
 use log::{debug, error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
@@ -84,16 +84,38 @@ fn reasoning_disable_params(provider: &PostProcessProvider) -> ReasoningParams {
     }
 }
 
-/// Endpoints (base_url|model) that rejected the reasoning-disable fields with a
+/// Reasoning fields for one request. On the Custom provider a value picked in
+/// the profile is sent verbatim as `reasoning_effort` (`Omit` sends nothing).
+/// Otherwise the built-in rule applies: ask Custom and OpenRouter to skip
+/// reasoning/thinking — post-processing rarely benefits from it and it adds
+/// seconds of latency — and send nothing to other providers.
+fn reasoning_params(provider: &PostProcessProvider, mode: ReasoningEffort) -> ReasoningParams {
+    match provider.id.as_str() {
+        "custom" if mode != ReasoningEffort::Auto => ReasoningParams {
+            reasoning_effort: mode.effort_value().map(str::to_string),
+            ..Default::default()
+        },
+        "custom" | "openrouter" => reasoning_disable_params(provider),
+        _ => ReasoningParams::default(),
+    }
+}
+
+/// Endpoints (base_url|model|mode) that rejected the reasoning-disable fields with a
 /// 4xx. Remembered for the lifetime of the process so every dictation after the
-/// first skips the doomed attempt and goes straight to a plain request.
+/// first skips the doomed attempt and goes straight to a plain request. The mode
+/// is part of the key so choosing another value in the UI is tried afresh.
 fn reasoning_rejections() -> &'static Mutex<HashSet<String>> {
     static REJECTED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     REJECTED.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-fn endpoint_key(provider: &PostProcessProvider, model: &str) -> String {
-    format!("{}|{}", provider.base_url.trim_end_matches('/'), model)
+fn endpoint_key(provider: &PostProcessProvider, model: &str, mode: ReasoningEffort) -> String {
+    format!(
+        "{}|{}|{}",
+        provider.base_url.trim_end_matches('/'),
+        model,
+        mode.as_str()
+    )
 }
 
 fn is_known_rejected(key: &str) -> bool {
@@ -302,7 +324,7 @@ pub async fn send_chat_completion(
     api_key: String,
     model: &str,
     prompt: String,
-    disable_reasoning: bool,
+    reasoning_effort: ReasoningEffort,
 ) -> Result<Option<String>, String> {
     send_chat_completion_with_schema(
         provider,
@@ -311,7 +333,7 @@ pub async fn send_chat_completion(
         prompt,
         None,
         None,
-        disable_reasoning,
+        reasoning_effort,
     )
     .await
 }
@@ -320,12 +342,12 @@ pub async fn send_chat_completion(
 /// When json_schema is provided, uses structured outputs mode.
 /// system_prompt is used as the system message when provided.
 ///
-/// When disable_reasoning is set, the request carries the reasoning-disable
-/// fields the endpoint is expected to understand. Not every OpenAI-compatible
-/// endpoint accepts them (DeepSeek, Gemini's compat layer, and some OpenRouter
-/// upstreams reject with 400), so a 400/422 answer to such a request triggers
-/// one retry without the fields, and the rejection is remembered per
-/// (base_url, model) so later requests skip the failing attempt entirely.
+/// reasoning_effort picks the reasoning fields sent (see `reasoning_params`).
+/// Not every OpenAI-compatible endpoint accepts these fields (DeepSeek,
+/// Gemini's compat layer, and some OpenRouter upstreams reject with 400), so a
+/// 400/422 answer to such a request triggers one retry without the fields, and
+/// the rejection is remembered per (base_url, model, mode) so later requests
+/// skip the failing attempt entirely.
 pub async fn send_chat_completion_with_schema(
     provider: &PostProcessProvider,
     api_key: String,
@@ -333,7 +355,7 @@ pub async fn send_chat_completion_with_schema(
     user_content: String,
     system_prompt: Option<String>,
     json_schema: Option<Value>,
-    disable_reasoning: bool,
+    reasoning_effort: ReasoningEffort,
 ) -> Result<Option<String>, String> {
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
@@ -372,11 +394,11 @@ pub async fn send_chat_completion_with_schema(
         },
     });
 
-    let key = endpoint_key(provider, model);
-    let reasoning = if disable_reasoning && !is_known_rejected(&key) {
-        reasoning_disable_params(provider)
-    } else {
+    let key = endpoint_key(provider, model, reasoning_effort);
+    let reasoning = if is_known_rejected(&key) {
         ReasoningParams::default()
+    } else {
+        reasoning_params(provider, reasoning_effort)
     };
 
     let mut request_body = ChatCompletionRequest {
@@ -411,8 +433,8 @@ pub async fn send_chat_completion_with_schema(
             report_reqwest_error("Failed to read reasoning rejection response", &e)
         });
         info!(
-            "Endpoint rejected request with reasoning disabled (status {}): {}. Retrying without reasoning fields",
-            status, error_text
+            "Endpoint rejected request with reasoning fields (reasoning '{}', status {}): {}. Retrying without them",
+            reasoning_effort.as_str(), status, error_text
         );
 
         request_body.reasoning = ReasoningParams::default();
@@ -432,8 +454,8 @@ pub async fn send_chat_completion_with_schema(
 
         if status.is_success() {
             info!(
-                "Retry without reasoning fields succeeded; '{}' (model '{}') will skip them from now on",
-                sanitized_url_for_log(base_url), model
+                "Retry without reasoning fields succeeded; '{}' (model '{}', reasoning '{}') will skip them from now on",
+                sanitized_url_for_log(base_url), model, reasoning_effort.as_str()
             );
             remember_rejection(key);
         }
@@ -721,14 +743,83 @@ mod tests {
     }
 
     #[test]
-    fn rejection_memo_is_keyed_by_base_url_and_model() {
+    fn rejection_memo_is_keyed_by_base_url_model_and_mode() {
         let deepseek = provider("custom", "https://api.deepseek.com/");
-        let key = endpoint_key(&deepseek, "deepseek-chat");
-        assert_eq!(key, "https://api.deepseek.com|deepseek-chat");
+        let key = endpoint_key(&deepseek, "deepseek-chat", ReasoningEffort::Auto);
+        assert_eq!(key, "https://api.deepseek.com|deepseek-chat|auto");
         assert!(!is_known_rejected(&key));
         remember_rejection(key.clone());
         assert!(is_known_rejected(&key));
         // A different model on the same endpoint is tracked separately
-        assert!(!is_known_rejected(&endpoint_key(&deepseek, "other-model")));
+        assert!(!is_known_rejected(&endpoint_key(
+            &deepseek,
+            "other-model",
+            ReasoningEffort::Auto
+        )));
+    }
+
+    #[test]
+    fn rejected_mode_does_not_block_other_modes() {
+        let custom = provider("custom", "http://localhost:8080/v1");
+        let none_key = endpoint_key(&custom, "gpt-oss-120b", ReasoningEffort::None);
+        let low_key = endpoint_key(&custom, "gpt-oss-120b", ReasoningEffort::Low);
+        assert_ne!(none_key, low_key);
+        remember_rejection(none_key.clone());
+        assert!(is_known_rejected(&none_key));
+        assert!(!is_known_rejected(&low_key));
+    }
+
+    const ALL_PROVIDERS: [(&str, &str); 4] = [
+        ("custom", "http://localhost:8080/v1"),
+        ("openrouter", "https://openrouter.ai/api/v1"),
+        ("custom", "https://api.deepseek.com"),
+        ("openai", "https://api.openai.com/v1"),
+    ];
+
+    #[test]
+    fn auto_disables_reasoning_for_custom_and_openrouter_only() {
+        for (id, url) in ALL_PROVIDERS {
+            let p = provider(id, url);
+            let expected = if matches!(id, "custom" | "openrouter") {
+                reasoning_disable_params(&p)
+            } else {
+                ReasoningParams::default()
+            };
+            assert_eq!(reasoning_params(&p, ReasoningEffort::Auto), expected);
+        }
+    }
+
+    #[test]
+    fn custom_sends_selected_value_verbatim() {
+        let custom = provider("custom", "http://localhost:8080/v1");
+        assert!(reasoning_params(&custom, ReasoningEffort::Omit).is_empty());
+        for mode in [
+            ReasoningEffort::None,
+            ReasoningEffort::Minimal,
+            ReasoningEffort::Low,
+            ReasoningEffort::Medium,
+            ReasoningEffort::High,
+        ] {
+            let json = request_json(reasoning_params(&custom, mode));
+            assert_eq!(json["reasoning_effort"], mode.as_str());
+            assert!(json.get("reasoning").is_none());
+            assert!(json.get("thinking").is_none());
+        }
+    }
+
+    #[test]
+    fn non_custom_providers_ignore_selected_value() {
+        for (id, url) in [
+            ("openrouter", "https://openrouter.ai/api/v1"),
+            ("openai", "https://api.openai.com/v1"),
+        ] {
+            let p = provider(id, url);
+            for mode in [ReasoningEffort::Omit, ReasoningEffort::Low] {
+                assert_eq!(
+                    reasoning_params(&p, mode),
+                    reasoning_params(&p, ReasoningEffort::Auto)
+                );
+            }
+        }
     }
 }

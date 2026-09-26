@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Wyszukaj lub wybierz model",
           "placeholderNoOptions": "Wpisz nazwę modelu",
           "refreshModels": "Odśwież modele"
+        },
+        "reasoning": {
+          "title": "Rozumowanie",
+          "description": "Jeśli wynik zawiera rozumowanie modelu lub żądanie się nie powiedzie, spróbuj „Niskie”.",
+          "options": {
+            "auto": "Automatycznie (domyślnie)",
+            "omit": "Nie wysyłaj",
+            "none": "Brak",
+            "minimal": "Minimalne",
+            "low": "Niskie",
+            "medium": "Średnie",
+            "high": "Wysokie"
+          }
         }
       },
       "prompts": {

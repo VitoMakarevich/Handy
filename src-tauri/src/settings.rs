@@ -138,6 +138,51 @@ pub struct PostProcessProfile {
     pub prompts: Vec<LLMPrompt>,
     #[serde(default)]
     pub selected_prompt_id: Option<String>,
+    #[serde(default)]
+    pub reasoning_effort: ReasoningEffort,
+}
+
+/// Reasoning/thinking value sent with post-processing requests. Models differ
+/// in what they accept (some always reason and leak their chain of thought
+/// into the answer when asked for `none`), so the user picks it per profile.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningEffort {
+    /// Send no reasoning fields, leaving the model's own default.
+    Omit,
+    None,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    /// Built-in rule: disable reasoning for Custom and OpenRouter, send
+    /// nothing elsewhere; fields rejected by the endpoint are dropped.
+    /// Unknown stored values load as this instead of dropping the profile.
+    #[default]
+    #[serde(other)]
+    Auto,
+}
+
+impl ReasoningEffort {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ReasoningEffort::Auto => "auto",
+            ReasoningEffort::Omit => "omit",
+            ReasoningEffort::None => "none",
+            ReasoningEffort::Minimal => "minimal",
+            ReasoningEffort::Low => "low",
+            ReasoningEffort::Medium => "medium",
+            ReasoningEffort::High => "high",
+        }
+    }
+
+    /// Value sent to the endpoint; `None` for modes that send no explicit value.
+    pub fn effort_value(self) -> Option<&'static str> {
+        match self {
+            ReasoningEffort::Auto | ReasoningEffort::Omit => None,
+            other => Some(other.as_str()),
+        }
+    }
 }
 
 impl PostProcessProfile {
@@ -153,6 +198,7 @@ impl PostProcessProfile {
             models: default_post_process_models(),
             prompts: default_post_process_prompts(),
             selected_prompt_id: None,
+            reasoning_effort: ReasoningEffort::Auto,
         }
     }
 
@@ -2000,6 +2046,36 @@ mod tests {
             settings.post_process_profiles[1].api_keys["openai"],
             "sk-keep-me"
         );
+    }
+
+    #[test]
+    fn profile_without_reasoning_effort_loads_as_auto() {
+        let mut profile = serde_json::to_value(default_post_process_profile()).unwrap();
+        profile.as_object_mut().unwrap().remove("reasoning_effort");
+        let profile: PostProcessProfile = serde_json::from_value(profile).unwrap();
+        assert_eq!(profile.reasoning_effort, ReasoningEffort::Auto);
+    }
+
+    #[test]
+    fn unknown_reasoning_effort_loads_as_auto() {
+        let mut profile = serde_json::to_value(default_post_process_profile()).unwrap();
+        profile["reasoning_effort"] = serde_json::json!("extreme");
+        let profile: PostProcessProfile = serde_json::from_value(profile).unwrap();
+        assert_eq!(profile.reasoning_effort, ReasoningEffort::Auto);
+    }
+
+    #[test]
+    fn reasoning_effort_round_trips() {
+        for value in ["auto", "omit", "none", "minimal", "low", "medium", "high"] {
+            let effort: ReasoningEffort = serde_json::from_value(serde_json::json!(value)).unwrap();
+            assert_eq!(effort.as_str(), value);
+            let mut profile = default_post_process_profile();
+            profile.reasoning_effort = effort;
+            let json = serde_json::to_value(&profile).unwrap();
+            assert_eq!(json["reasoning_effort"], value);
+            let loaded: PostProcessProfile = serde_json::from_value(json).unwrap();
+            assert_eq!(loaded.reasoning_effort, effort);
+        }
     }
 
     #[test]

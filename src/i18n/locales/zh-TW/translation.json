@@ -447,6 +447,19 @@
           "placeholderWithOptions": "搜尋或選擇模型",
           "placeholderNoOptions": "輸入模型名稱",
           "refreshModels": "重新整理模型"
+        },
+        "reasoning": {
+          "title": "推理",
+          "description": "如果輸出包含模型的思考過程或請求失敗，請嘗試「低」。",
+          "options": {
+            "auto": "自動（預設）",
+            "omit": "不傳送",
+            "none": "無",
+            "minimal": "最低",
+            "low": "低",
+            "medium": "中",
+            "high": "高"
+          }
         }
       },
       "prompts": {
