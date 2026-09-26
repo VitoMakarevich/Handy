@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Vyhledejte nebo vyberte model",
           "placeholderNoOptions": "Zadejte název modelu",
           "refreshModels": "Obnovit modely"
+        },
+        "reasoning": {
+          "title": "Uvažování",
+          "description": "Pokud výstup obsahuje přemýšlení modelu nebo požadavek selže, zkuste „Nízké“.",
+          "options": {
+            "auto": "Automaticky (výchozí)",
+            "omit": "Neodesílat",
+            "none": "Žádné",
+            "minimal": "Minimální",
+            "low": "Nízké",
+            "medium": "Střední",
+            "high": "Vysoké"
+          }
         }
       },
       "prompts": {

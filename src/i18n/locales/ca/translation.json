@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Cerqueu o seleccioneu un model",
           "placeholderNoOptions": "Escriviu el nom d'un model",
           "refreshModels": "Actualitzeu els models"
+        },
+        "reasoning": {
+          "title": "Raonament",
+          "description": "Si la sortida conté el raonament del model o la sol·licitud falla, proveu «Baix».",
+          "options": {
+            "auto": "Automàtic (per defecte)",
+            "omit": "No enviar",
+            "none": "Cap",
+            "minimal": "Mínim",
+            "low": "Baix",
+            "medium": "Mitjà",
+            "high": "Alt"
+          }
         }
       },
       "prompts": {

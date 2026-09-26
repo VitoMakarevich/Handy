@@ -447,6 +447,19 @@
           "placeholderWithOptions": "모델 검색 또는 선택",
           "placeholderNoOptions": "모델 이름 입력",
           "refreshModels": "모델 새로고침"
+        },
+        "reasoning": {
+          "title": "추론",
+          "description": "출력에 모델의 사고 과정이 포함되거나 요청이 실패하면 '낮음'을 시도해 보세요.",
+          "options": {
+            "auto": "자동 (기본값)",
+            "omit": "보내지 않음",
+            "none": "없음",
+            "minimal": "최소",
+            "low": "낮음",
+            "medium": "중간",
+            "high": "높음"
+          }
         }
       },
       "prompts": {

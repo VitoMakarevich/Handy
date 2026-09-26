@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Søg eller vælg en model",
           "placeholderNoOptions": "Skriv et modelnavn",
           "refreshModels": "Opdater modeller"
+        },
+        "reasoning": {
+          "title": "Ræsonnement",
+          "description": "Hvis outputtet indeholder modellens tænkning, eller anmodningen mislykkes, så prøv Lav.",
+          "options": {
+            "auto": "Automatisk (standard)",
+            "omit": "Send ikke",
+            "none": "Ingen",
+            "minimal": "Minimal",
+            "low": "Lav",
+            "medium": "Mellem",
+            "high": "Høj"
+          }
         }
       },
       "prompts": {

@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Tìm kiếm hoặc chọn một mô hình",
           "placeholderNoOptions": "Nhập tên mô hình",
           "refreshModels": "Làm mới mô hình"
+        },
+        "reasoning": {
+          "title": "Suy luận",
+          "description": "Nếu kết quả chứa phần suy nghĩ của mô hình hoặc yêu cầu thất bại, hãy thử Thấp.",
+          "options": {
+            "auto": "Tự động (mặc định)",
+            "omit": "Không gửi",
+            "none": "Không",
+            "minimal": "Tối thiểu",
+            "low": "Thấp",
+            "medium": "Trung bình",
+            "high": "Cao"
+          }
         }
       },
       "prompts": {

@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Sök eller välj en modell",
           "placeholderNoOptions": "Ange ett modellnamn",
           "refreshModels": "Uppdatera modeller"
+        },
+        "reasoning": {
+          "title": "Resonemang",
+          "description": "Om utdata innehåller modellens tänkande eller begäran misslyckas, prova Låg.",
+          "options": {
+            "auto": "Automatiskt (standard)",
+            "omit": "Skicka inte",
+            "none": "Ingen",
+            "minimal": "Minimal",
+            "low": "Låg",
+            "medium": "Medel",
+            "high": "Hög"
+          }
         }
       },
       "prompts": {

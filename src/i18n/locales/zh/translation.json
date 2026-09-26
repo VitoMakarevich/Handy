@@ -447,6 +447,19 @@
           "placeholderWithOptions": "搜索或选择模型",
           "placeholderNoOptions": "输入模型名称",
           "refreshModels": "刷新模型"
+        },
+        "reasoning": {
+          "title": "推理",
+          "description": "如果输出包含模型的思考过程或请求失败，请尝试「低」。",
+          "options": {
+            "auto": "自动（默认）",
+            "omit": "不发送",
+            "none": "无",
+            "minimal": "最低",
+            "low": "低",
+            "medium": "中",
+            "high": "高"
+          }
         }
       },
       "prompts": {

@@ -447,6 +447,19 @@
           "placeholderWithOptions": "חפש או בחר מודל",
           "placeholderNoOptions": "הקלד שם מודל",
           "refreshModels": "רענן מודלים"
+        },
+        "reasoning": {
+          "title": "הסקה",
+          "description": "אם הפלט מכיל את החשיבה של המודל או שהבקשה נכשלת, נסו „נמוך”.",
+          "options": {
+            "auto": "אוטומטי (ברירת מחדל)",
+            "omit": "לא לשלוח",
+            "none": "ללא",
+            "minimal": "מינימלי",
+            "low": "נמוך",
+            "medium": "בינוני",
+            "high": "גבוה"
+          }
         }
       },
       "prompts": {

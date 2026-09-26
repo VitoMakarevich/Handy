@@ -424,6 +424,19 @@
           "placeholderWithOptions": "ابحث عن نموذج أو اختره",
           "placeholderNoOptions": "اكتب اسم النموذج",
           "refreshModels": "تحديث النماذج"
+        },
+        "reasoning": {
+          "title": "الاستدلال",
+          "description": "إذا تضمّن الناتج تفكير النموذج أو فشل الطلب، فجرّب «منخفض».",
+          "options": {
+            "auto": "تلقائي (افتراضي)",
+            "omit": "عدم الإرسال",
+            "none": "بدون",
+            "minimal": "أدنى",
+            "low": "منخفض",
+            "medium": "متوسط",
+            "high": "مرتفع"
+          }
         }
       },
       "prompts": {

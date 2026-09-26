@@ -447,6 +447,19 @@
           "placeholderWithOptions": "モデルを検索または選択",
           "placeholderNoOptions": "モデル名を入力",
           "refreshModels": "モデルを更新"
+        },
+        "reasoning": {
+          "title": "推論",
+          "description": "出力にモデルの思考が含まれる場合やリクエストが失敗する場合は「低」を試してください。",
+          "options": {
+            "auto": "自動（デフォルト）",
+            "omit": "送信しない",
+            "none": "なし",
+            "minimal": "最小",
+            "low": "低",
+            "medium": "中",
+            "high": "高"
+          }
         }
       },
       "prompts": {

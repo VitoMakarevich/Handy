@@ -6,6 +6,7 @@ import type {
   AudioDevice,
   TranscribeAcceleratorSetting,
   OrtAcceleratorSetting,
+  ReasoningEffort,
   ShortcutActivation,
   VadBackend,
 } from "@/bindings";
@@ -66,6 +67,10 @@ interface SettingsStore {
     profileId: string,
     providerId: string,
     model: string,
+  ) => Promise<void>;
+  updatePostProcessReasoningEffort: (
+    profileId: string,
+    value: ReasoningEffort,
   ) => Promise<void>;
   fetchPostProcessModels: (
     profileId: string,
@@ -614,6 +619,28 @@ export const useSettingsStore = create<SettingsStore>()(
         providerId,
         model,
       );
+    },
+
+    updatePostProcessReasoningEffort: async (profileId, value) => {
+      const { setUpdating, refreshSettings } = get();
+      const updateKey = `post_process_reasoning_effort:${profileId}`;
+
+      setUpdating(updateKey, true);
+
+      try {
+        const result = await commands.changePostProcessReasoningEffortSetting(
+          profileId,
+          value,
+        );
+        if (result.status === "error") {
+          console.error("Failed to update reasoning effort:", result.error);
+        }
+        await refreshSettings();
+      } catch (error) {
+        console.error("Failed to update reasoning effort:", error);
+      } finally {
+        setUpdating(updateKey, false);
+      }
     },
 
     fetchPostProcessModels: async (profileId, providerId) => {

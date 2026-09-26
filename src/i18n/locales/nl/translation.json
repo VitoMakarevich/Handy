@@ -447,6 +447,19 @@
           "placeholderWithOptions": "Zoek of selecteer een model",
           "placeholderNoOptions": "Typ een modelnaam",
           "refreshModels": "Modellen verversen"
+        },
+        "reasoning": {
+          "title": "Redeneren",
+          "description": "Als de uitvoer het denkproces van het model bevat of het verzoek mislukt, probeer dan Laag.",
+          "options": {
+            "auto": "Automatisch (standaard)",
+            "omit": "Niet verzenden",
+            "none": "Geen",
+            "minimal": "Minimaal",
+            "low": "Laag",
+            "medium": "Gemiddeld",
+            "high": "Hoog"
+          }
         }
       },
       "prompts": {

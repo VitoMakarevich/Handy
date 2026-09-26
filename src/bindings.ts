@@ -256,6 +256,14 @@ async changePostProcessModelSetting(profileId: string, providerId: string, model
     else return { status: "error", error: e  as any };
 }
 },
+async changePostProcessReasoningEffortSetting(profileId: string, value: ReasoningEffort) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_post_process_reasoning_effort_setting", { profileId, value }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setPostProcessProvider(profileId: string, providerId: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_post_process_provider", { profileId, providerId }) };
@@ -1138,8 +1146,24 @@ name?: string;
 /**
  * Key into `AppSettings::bindings`.
  */
-binding_id: string; provider_id?: string; providers?: PostProcessProvider[]; api_keys?: SecretMap; models?: Partial<{ [key in string]: string }>; prompts?: LLMPrompt[]; selected_prompt_id?: string | null }
+binding_id: string; provider_id?: string; providers?: PostProcessProvider[]; api_keys?: SecretMap; models?: Partial<{ [key in string]: string }>; prompts?: LLMPrompt[]; selected_prompt_id?: string | null; reasoning_effort?: ReasoningEffort }
 export type PostProcessProvider = { id: string; label: string; base_url: string; allow_base_url_edit?: boolean; models_endpoint?: string | null; supports_structured_output?: boolean }
+/**
+ * Reasoning/thinking value sent with post-processing requests. Models differ
+ * in what they accept (some always reason and leak their chain of thought
+ * into the answer when asked for `none`), so the user picks it per profile.
+ */
+export type ReasoningEffort = 
+/**
+ * Send no reasoning fields, leaving the model's own default.
+ */
+"omit" | "none" | "minimal" | "low" | "medium" | "high" | 
+/**
+ * Built-in rule: disable reasoning for Custom and OpenRouter, send
+ * nothing elsewhere; fields rejected by the endpoint are dropped.
+ * Unknown stored values load as this instead of dropping the profile.
+ */
+"auto"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 export type SecretMap = Partial<{ [key in string]: string }>
 export type SecureInputStatus = { 

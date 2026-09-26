@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { useSettingsStore } from "../stores/settingsStore";
-import type { AppSettings as Settings, AudioDevice } from "@/bindings";
+import type {
+  AppSettings as Settings,
+  AudioDevice,
+  ReasoningEffort,
+} from "@/bindings";
 
 interface UseSettingsReturn {
   // State
@@ -50,6 +54,10 @@ interface UseSettingsReturn {
     providerId: string,
     model: string,
   ) => Promise<void>;
+  updatePostProcessReasoningEffort: (
+    profileId: string,
+    value: ReasoningEffort,
+  ) => Promise<void>;
   fetchPostProcessModels: (
     profileId: string,
     providerId: string,
@@ -87,6 +95,7 @@ export const useSettings = (): UseSettingsReturn => {
     updatePostProcessBaseUrl: store.updatePostProcessBaseUrl,
     updatePostProcessApiKey: store.updatePostProcessApiKey,
     updatePostProcessModel: store.updatePostProcessModel,
+    updatePostProcessReasoningEffort: store.updatePostProcessReasoningEffort,
     fetchPostProcessModels: store.fetchPostProcessModels,
   };
 };
