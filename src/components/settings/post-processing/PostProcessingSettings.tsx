@@ -154,7 +154,7 @@ const PostProcessingSettingsApiComponent: React.FC<ProfileProps> = ({
         </SettingContainer>
       )}
 
-      {state.isCustomProvider && (
+      {state.supportsReasoningEffort && (
         <SettingContainer
           title={t("settings.postProcessing.api.reasoning.title")}
           description={t("settings.postProcessing.api.reasoning.description")}

@@ -14,6 +14,7 @@ type PostProcessProviderState = {
   selectedProviderId: string;
   selectedProvider: PostProcessProvider | undefined;
   isCustomProvider: boolean;
+  supportsReasoningEffort: boolean;
   isAppleProvider: boolean;
   appleIntelligenceUnavailable: boolean;
   baseUrl: string;
@@ -231,6 +232,9 @@ export const usePostProcessProviderState = (
   );
 
   const isCustomProvider = selectedProvider?.id === "custom";
+  // Custom sends `reasoning_effort`; Anthropic maps it to the native effort/thinking fields.
+  const supportsReasoningEffort =
+    isCustomProvider || selectedProvider?.id === "anthropic";
 
   // No automatic fetching - user must click refresh button
 
@@ -239,6 +243,7 @@ export const usePostProcessProviderState = (
     selectedProviderId,
     selectedProvider,
     isCustomProvider,
+    supportsReasoningEffort,
     isAppleProvider,
     appleIntelligenceUnavailable,
     baseUrl,
