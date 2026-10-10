@@ -29,6 +29,22 @@ migration 5 (adds `post_process_profile_id`).
 > database. Back up `~/Library/Application Support/com.pais.handy/` first if
 > you might go back.
 
+## Reasoning setting
+
+Each profile has a **Reasoning** selector, shown for the Custom and Anthropic
+providers (Auto is the default; it sends nothing for Anthropic).
+
+- **Custom** sends the chosen value verbatim as `reasoning_effort`
+  (`Don't send` omits the field).
+- **Anthropic** uses the native Messages API (`POST /v1/messages`), because the
+  OpenAI-compatible endpoint ignores `reasoning_effort`. `Low` / `Medium` /
+  `High` become `output_config.effort`, `Minimal` is sent as `low` (Anthropic
+  has no such level), and `None` sends `thinking: {"type": "disabled"}`, which
+  Haiku 5.5 accepts at effort `high` or below. Models that reject the fields
+  are retried once without them, as for Custom. A safety refusal
+  (`stop_reason: "refusal"`) is treated as an error, so Handy pastes the raw
+  transcript.
+
 ## Build (macOS)
 
 ```bash

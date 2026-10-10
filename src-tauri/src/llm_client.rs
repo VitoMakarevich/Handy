@@ -100,6 +100,88 @@ fn reasoning_params(provider: &PostProcessProvider, mode: ReasoningEffort) -> Re
     }
 }
 
+const ANTHROPIC_PROVIDER_ID: &str = "anthropic";
+
+/// Anthropic's OpenAI-compatible `/chat/completions` layer ignores
+/// `reasoning_effort`, so the Anthropic provider talks to the native Messages
+/// API, where effort and thinking are separate request fields.
+#[derive(Debug, Serialize, Clone, Default, PartialEq)]
+struct AnthropicReasoning {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_config: Option<Value>,
+}
+
+impl AnthropicReasoning {
+    fn is_empty(&self) -> bool {
+        self.thinking.is_none() && self.output_config.is_none()
+    }
+}
+
+/// Map the profile's Reasoning setting onto the Messages API. Anthropic has no
+/// "minimal" level, so it is sent as `low`. `None` turns thinking off, which
+/// Haiku 5.5 accepts at effort `high` or below (the default is `medium`); models
+/// that reject it fall back to a plain request like any other rejected field.
+fn anthropic_reasoning_params(mode: ReasoningEffort) -> AnthropicReasoning {
+    let effort = |level: &str| AnthropicReasoning {
+        output_config: Some(serde_json::json!({ "effort": level })),
+        ..Default::default()
+    };
+    match mode {
+        ReasoningEffort::Auto | ReasoningEffort::Omit => AnthropicReasoning::default(),
+        ReasoningEffort::None => AnthropicReasoning {
+            thinking: Some(serde_json::json!({ "type": "disabled" })),
+            ..Default::default()
+        },
+        ReasoningEffort::Minimal | ReasoningEffort::Low => effort("low"),
+        ReasoningEffort::Medium => effort("medium"),
+        ReasoningEffort::High => effort("high"),
+    }
+}
+
+/// `max_tokens` also covers thinking tokens, so leave room for them.
+const ANTHROPIC_MAX_TOKENS: u32 = 16000;
+
+#[derive(Debug, Serialize)]
+struct AnthropicRequest {
+    model: String,
+    max_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system: Option<String>,
+    messages: Vec<ChatMessage>,
+    #[serde(flatten)]
+    reasoning: AnthropicReasoning,
+}
+
+#[derive(Debug, Deserialize)]
+struct AnthropicResponse {
+    #[serde(default)]
+    content: Vec<AnthropicContentBlock>,
+    stop_reason: Option<String>,
+    stop_details: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AnthropicContentBlock {
+    #[serde(rename = "type")]
+    block_type: String,
+    text: Option<String>,
+}
+
+impl AnthropicResponse {
+    /// Concatenated text blocks; thinking blocks are skipped.
+    fn text(&self) -> Option<String> {
+        let text: String = self
+            .content
+            .iter()
+            .filter(|block| block.block_type == "text")
+            .filter_map(|block| block.text.as_deref())
+            .collect();
+        (!text.is_empty()).then_some(text)
+    }
+}
+
 /// Endpoints (base_url|model|mode) that rejected the reasoning-disable fields with a
 /// 4xx. Remembered for the lifetime of the process so every dictation after the
 /// first skips the doomed attempt and goes straight to a plain request. The mode
@@ -357,6 +439,19 @@ pub async fn send_chat_completion_with_schema(
     json_schema: Option<Value>,
     reasoning_effort: ReasoningEffort,
 ) -> Result<Option<String>, String> {
+    if provider.id == ANTHROPIC_PROVIDER_ID {
+        // The Anthropic provider has no structured output (`json_schema` is unused).
+        return send_anthropic_message(
+            provider,
+            api_key,
+            model,
+            user_content,
+            system_prompt,
+            reasoning_effort,
+        )
+        .await;
+    }
+
     let base_url = provider.base_url.trim_end_matches('/');
     let url = format!("{}/chat/completions", base_url);
 
@@ -481,6 +576,121 @@ pub async fn send_chat_completion_with_schema(
         .choices
         .first()
         .and_then(|choice| choice.message.content.clone()))
+}
+
+/// Send one request to the native Anthropic Messages API (`POST {base_url}/messages`).
+/// Like the chat-completions path, a 400/422 on a request carrying reasoning fields
+/// is retried once without them and remembered per (base_url, model, mode).
+async fn send_anthropic_message(
+    provider: &PostProcessProvider,
+    api_key: String,
+    model: &str,
+    user_content: String,
+    system_prompt: Option<String>,
+    reasoning_effort: ReasoningEffort,
+) -> Result<Option<String>, String> {
+    let base_url = provider.base_url.trim_end_matches('/');
+    let url = format!("{}/messages", base_url);
+
+    debug!(
+        "Sending Anthropic messages request to: {}",
+        sanitized_url_for_log(&url)
+    );
+
+    let client = create_client(provider, &api_key)?;
+
+    let key = endpoint_key(provider, model, reasoning_effort);
+    let reasoning = if is_known_rejected(&key) {
+        AnthropicReasoning::default()
+    } else {
+        anthropic_reasoning_params(reasoning_effort)
+    };
+
+    let mut request_body = AnthropicRequest {
+        model: model.to_string(),
+        max_tokens: ANTHROPIC_MAX_TOKENS,
+        system: system_prompt,
+        messages: vec![ChatMessage {
+            role: "user".to_string(),
+            content: user_content,
+        }],
+        reasoning,
+    };
+
+    let mut response = client
+        .post(&url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| report_reqwest_error("HTTP request failed", &e))?;
+    let mut status = response.status();
+    debug!(
+        "Anthropic messages response received with status {} over {:?} from {}",
+        status,
+        response.version(),
+        sanitized_url(response.url())
+    );
+
+    if !status.is_success()
+        && matches!(status.as_u16(), 400 | 422)
+        && !request_body.reasoning.is_empty()
+    {
+        let error_text = response.text().await.unwrap_or_else(|e| {
+            report_reqwest_error("Failed to read reasoning rejection response", &e)
+        });
+        info!(
+            "Anthropic rejected request with reasoning fields (reasoning '{}', status {}): {}. Retrying without them",
+            reasoning_effort.as_str(), status, error_text
+        );
+
+        request_body.reasoning = AnthropicReasoning::default();
+        response = client
+            .post(&url)
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| report_reqwest_error("HTTP retry failed", &e))?;
+        status = response.status();
+
+        if status.is_success() {
+            info!(
+                "Retry without reasoning fields succeeded; '{}' (model '{}', reasoning '{}') will skip them from now on",
+                sanitized_url_for_log(base_url), model, reasoning_effort.as_str()
+            );
+            remember_rejection(key);
+        }
+    }
+
+    if !status.is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|e| report_reqwest_error("Failed to read API error response", &e));
+        return Err(format!(
+            "API request failed with status {}: {}",
+            status, error_text
+        ));
+    }
+
+    let message: AnthropicResponse = response
+        .json()
+        .await
+        .map_err(|e| report_reqwest_error("Failed to parse API response", &e))?;
+
+    // Safety classifiers answer 200 with stop_reason "refusal"; an error makes
+    // Handy paste the raw transcript instead of an empty or partial text.
+    if message.stop_reason.as_deref() == Some("refusal") {
+        return Err(format!(
+            "Anthropic declined the request (stop_details: {})",
+            message
+                .stop_details
+                .as_ref()
+                .map(Value::to_string)
+                .unwrap_or_else(|| "none".to_string())
+        ));
+    }
+
+    Ok(message.text())
 }
 
 /// Fetch available models from an OpenAI-compatible API
@@ -740,6 +950,111 @@ mod tests {
             ..Default::default()
         }
         .is_empty());
+    }
+
+    fn anthropic_request_json(mode: ReasoningEffort, system: Option<&str>) -> Value {
+        let request = AnthropicRequest {
+            model: "claude-haiku-5-5".to_string(),
+            max_tokens: ANTHROPIC_MAX_TOKENS,
+            system: system.map(str::to_string),
+            messages: vec![ChatMessage {
+                role: "user".to_string(),
+                content: "hi".to_string(),
+            }],
+            reasoning: anthropic_reasoning_params(mode),
+        };
+        serde_json::to_value(&request).unwrap()
+    }
+
+    #[test]
+    fn anthropic_efforts_map_to_output_config() {
+        for (mode, expected) in [
+            (ReasoningEffort::Minimal, "low"),
+            (ReasoningEffort::Low, "low"),
+            (ReasoningEffort::Medium, "medium"),
+            (ReasoningEffort::High, "high"),
+        ] {
+            let json = anthropic_request_json(mode, None);
+            assert_eq!(json["output_config"]["effort"], expected);
+            assert!(json.get("thinking").is_none());
+            assert!(json.get("reasoning_effort").is_none());
+        }
+    }
+
+    #[test]
+    fn anthropic_none_disables_thinking_without_effort() {
+        let json = anthropic_request_json(ReasoningEffort::None, None);
+        assert_eq!(json["thinking"]["type"], "disabled");
+        assert!(json.get("output_config").is_none());
+    }
+
+    #[test]
+    fn anthropic_auto_and_omit_send_no_reasoning_fields() {
+        for mode in [ReasoningEffort::Auto, ReasoningEffort::Omit] {
+            let json = anthropic_request_json(mode, Some("be brief"));
+            assert!(json.get("thinking").is_none());
+            assert!(json.get("output_config").is_none());
+            assert_eq!(json["system"], "be brief");
+            assert_eq!(json["max_tokens"], ANTHROPIC_MAX_TOKENS);
+            assert_eq!(json["messages"][0]["role"], "user");
+            assert!(json.get("stream").is_none());
+        }
+        assert!(anthropic_request_json(ReasoningEffort::Auto, None)
+            .get("system")
+            .is_none());
+    }
+
+    #[test]
+    fn anthropic_response_text_skips_thinking_blocks() {
+        let message: AnthropicResponse = serde_json::from_str(
+            r#"{"content":[{"type":"thinking","thinking":"","signature":"x"},
+                {"type":"text","text":"hello "},{"type":"text","text":"world"}],
+                "stop_reason":"end_turn","stop_details":null}"#,
+        )
+        .unwrap();
+        assert_eq!(message.text().as_deref(), Some("hello world"));
+        let empty: AnthropicResponse =
+            serde_json::from_str(r#"{"content":[],"stop_reason":"max_tokens"}"#).unwrap();
+        assert_eq!(empty.text(), None);
+    }
+
+    #[tokio::test]
+    async fn anthropic_provider_posts_to_messages_and_reads_text() {
+        let base_url = serve_one_response(
+            "200 OK",
+            r#"{"content":[{"type":"text","text":"cleaned"}],"stop_reason":"end_turn"}"#,
+        )
+        .await;
+        let result = send_anthropic_message(
+            &provider(ANTHROPIC_PROVIDER_ID, &base_url),
+            "key".to_string(),
+            "claude-haiku-5-5",
+            "text".to_string(),
+            None,
+            ReasoningEffort::Low,
+        )
+        .await;
+        assert_eq!(result, Ok(Some("cleaned".to_string())));
+    }
+
+    #[tokio::test]
+    async fn anthropic_refusal_is_an_error() {
+        let base_url = serve_one_response(
+            "200 OK",
+            r#"{"content":[],"stop_reason":"refusal","stop_details":{"type":"refusal","category":"general_harms"}}"#,
+        )
+        .await;
+        let error = send_anthropic_message(
+            &provider(ANTHROPIC_PROVIDER_ID, &base_url),
+            "key".to_string(),
+            "claude-haiku-5-5",
+            "text".to_string(),
+            None,
+            ReasoningEffort::Auto,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.contains("general_harms"));
     }
 
     #[test]
