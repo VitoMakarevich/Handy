@@ -143,6 +143,32 @@ fn anthropic_reasoning_params(mode: ReasoningEffort) -> AnthropicReasoning {
 /// `max_tokens` also covers thinking tokens, so leave room for them.
 const ANTHROPIC_MAX_TOKENS: u32 = 16000;
 
+/// Appended to every Anthropic request. Without it Haiku 5.5 sometimes skips its
+/// thinking block and reasons out loud in the answer text, which Handy would paste
+/// ("Wait, the command … appears at the start, so translate…"). Asking for the final
+/// text inside tags keeps the answer separable and makes the model use thinking blocks
+/// far more. It asks for the answer only, never for reasoning (Anthropic's refusal
+/// docs warn against prompts that ask for reasoning in the output).
+const ANTHROPIC_RESULT_INSTRUCTION: &str =
+    "Wrap the final edited text in <result></result> tags and write nothing outside the tags.";
+
+fn anthropic_user_content(user_content: &str) -> String {
+    format!("{user_content}\n\n{ANTHROPIC_RESULT_INSTRUCTION}")
+}
+
+/// Text inside the last `<result>` tag. A missing closing tag (output cut off) takes
+/// the rest of the text; no tag at all returns the text unchanged.
+fn extract_result_tag(text: &str) -> String {
+    const OPEN: &str = "<result>";
+    const CLOSE: &str = "</result>";
+    let Some(start) = text.rfind(OPEN) else {
+        return text.to_string();
+    };
+    let inner = &text[start + OPEN.len()..];
+    let inner = inner.find(CLOSE).map_or(inner, |end| &inner[..end]);
+    inner.trim().to_string()
+}
+
 #[derive(Debug, Serialize)]
 struct AnthropicRequest {
     model: String,
@@ -612,7 +638,7 @@ async fn send_anthropic_message(
         system: system_prompt,
         messages: vec![ChatMessage {
             role: "user".to_string(),
-            content: user_content,
+            content: anthropic_user_content(&user_content),
         }],
         reasoning,
     };
@@ -690,7 +716,11 @@ async fn send_anthropic_message(
         ));
     }
 
-    Ok(message.text())
+    // An empty result counts as no content, like an empty reply.
+    Ok(message
+        .text()
+        .map(|text| extract_result_tag(&text))
+        .filter(|text| !text.is_empty()))
 }
 
 /// Fetch available models from an OpenAI-compatible API
@@ -1035,6 +1065,92 @@ mod tests {
         )
         .await;
         assert_eq!(result, Ok(Some("cleaned".to_string())));
+    }
+
+    #[test]
+    fn result_tag_is_extracted_and_trimmed() {
+        assert_eq!(
+            extract_result_tag("<result>\n  server crashed again  \n</result>"),
+            "server crashed again"
+        );
+    }
+
+    #[test]
+    fn result_tag_drops_reasoning_written_before_it() {
+        let leaked = "Wait, the command \"на английском\" is at the end, so translate.\n\n<result>the server crashed again after the deploy</result>";
+        assert_eq!(
+            extract_result_tag(leaked),
+            "the server crashed again after the deploy"
+        );
+    }
+
+    #[test]
+    fn last_result_tag_wins_and_mentions_of_the_tag_are_ignored() {
+        let text =
+            "I will put it in <result> tags. <result>first</result> no, <result>second</result>";
+        assert_eq!(extract_result_tag(text), "second");
+    }
+
+    #[test]
+    fn unclosed_result_tag_takes_the_rest_and_no_tag_passes_through() {
+        assert_eq!(
+            extract_result_tag("note <result>cut off answer"),
+            "cut off answer"
+        );
+        assert_eq!(extract_result_tag("plain answer"), "plain answer");
+    }
+
+    #[test]
+    fn result_tag_keeps_multi_paragraph_answers() {
+        assert_eq!(
+            extract_result_tag("<result>First paragraph.\n\nSecond paragraph.</result>"),
+            "First paragraph.\n\nSecond paragraph."
+        );
+    }
+
+    #[test]
+    fn anthropic_request_asks_for_the_result_tag() {
+        let content = anthropic_user_content("clean this: ${output}");
+        assert!(content.starts_with("clean this: ${output}\n\n"));
+        assert!(content.ends_with(ANTHROPIC_RESULT_INSTRUCTION));
+    }
+
+    #[tokio::test]
+    async fn anthropic_provider_returns_only_the_tagged_answer() {
+        let base_url = serve_one_response(
+            "200 OK",
+            r#"{"content":[{"type":"text","text":"Wait, let me check.\n\n<result>cleaned</result>"}],"stop_reason":"end_turn"}"#,
+        )
+        .await;
+        let result = send_anthropic_message(
+            &provider(ANTHROPIC_PROVIDER_ID, &base_url),
+            "key".to_string(),
+            "claude-haiku-5-5",
+            "text".to_string(),
+            None,
+            ReasoningEffort::Low,
+        )
+        .await;
+        assert_eq!(result, Ok(Some("cleaned".to_string())));
+    }
+
+    #[tokio::test]
+    async fn anthropic_empty_result_counts_as_no_content() {
+        let base_url = serve_one_response(
+            "200 OK",
+            r#"{"content":[{"type":"text","text":"<result></result>"}],"stop_reason":"end_turn"}"#,
+        )
+        .await;
+        let result = send_anthropic_message(
+            &provider(ANTHROPIC_PROVIDER_ID, &base_url),
+            "key".to_string(),
+            "claude-haiku-5-5",
+            "text".to_string(),
+            None,
+            ReasoningEffort::Low,
+        )
+        .await;
+        assert_eq!(result, Ok(None));
     }
 
     #[tokio::test]
