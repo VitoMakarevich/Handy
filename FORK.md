@@ -45,6 +45,25 @@ providers (Auto is the default; it sends nothing for Anthropic).
   (`stop_reason: "refusal"`) is treated as an error, so Handy pastes the raw
   transcript.
 
+### Anthropic: the answer is requested inside `<result>` tags
+
+Claude Haiku 5.5 decides per request whether to use a thinking block. When it
+skips it on a hard phrase (a translation command plus profanity, a
+self-correction) it sometimes reasons out loud in the answer text ("Wait, the
+command … appears at the start, so translate…"), and that whole reply would be
+pasted. The Anthropic provider therefore appends one line to every request
+("Wrap the final edited text in `<result></result>` tags and write nothing
+outside the tags.") and returns only the text inside the last `<result>` tag.
+If the reply has no tag the full text is returned as before; an unclosed tag
+returns the rest of the text; an empty result counts as no content.
+
+Measured on the full phrase set (214 requests per run, Haiku 5.5): reasoning in
+the pasted text went from 17 / 9–13 / 1 of 192 dictations at low / medium /
+high effort to 0 at every level, with no missing tags. The instruction asks for
+the answer only, never for reasoning in the output, which Anthropic's docs warn
+against. Still prefer Medium or High: with the tag at Low the pro-rewrite prompt
+answered in the wrong language for 3 of 22 inputs.
+
 ## Build (macOS)
 
 ```bash
